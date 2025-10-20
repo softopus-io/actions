@@ -3,11 +3,11 @@ description: 'make api request to health check endpoint and compare app version 
 author: 'Softopus'
 
 inputs:
-  expected:
-    description: 'desired app version'
-    required: true
   url:
     description: 'whole url for the api http get request'
+    required: true
+  expected:
+    description: 'desired app version'
     required: true
   username:
     description: 'username for basic authentication (optional)'
