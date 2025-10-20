@@ -9,6 +9,12 @@ inputs:
   url:
     description: 'whole url for the api http get request'
     required: true
+  username:
+    description: 'username for basic authentication (optional)'
+    required: false
+  password:
+    description: 'password for basic authentication (optional)'
+    required: false
 
 runs:
   using: 'composite'
@@ -16,4 +22,8 @@ runs:
     - name: Check Live URL
       shell: bash
       run: |
-        ${{ github.action_path }}/check.sh "${{ inputs.expected }}" "${{ inputs.url }}"
+        if [ -n "${{ inputs.username }}" ] && [ -n "${{ inputs.password }}" ]; then
+          ${{ github.action_path }}/check.sh "${{ inputs.expected }}" "${{ inputs.url }}" "${{ inputs.username }}" "${{ inputs.password }}"
+        else
+          ${{ github.action_path }}/check.sh "${{ inputs.expected }}" "${{ inputs.url }}"
+        fi

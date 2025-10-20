@@ -1,0 +1,14 @@
+name: 'version:pr'
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: 'Run test suite'
+        run: make test
