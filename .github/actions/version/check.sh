@@ -1,118 +1,90 @@
 #!/bin/bash
-
-# Exit immediately if a command exits with a non-zero status
 set -e
 
-# Check if required arguments are provided
-if [ $# -ne 2 ]; then
-    echo "Usage: $0 <expected_version> <health_check_url>"
+# --- Argument Validation ---
+if [ $# -ne 2 ] && [ $# -ne 4 ]; then
+    echo "Usage: $0 <expected_version> <health_check_url> [username] [password]" >&2
     exit 1
 fi
 
-# Assign arguments to variables
 EXPECTED_VERSION="$1"
 HEALTH_CHECK_URL="$2"
 
-# Validate that expected version is not empty
 if [ -z "$EXPECTED_VERSION" ]; then
-    echo "❌ Error: Expected version parameter is empty or not provided"
-    echo "Usage: $0 <expected_version> <health_check_url>"
-    echo "The expected_version parameter cannot be empty"
+    echo "❌ Error: Expected version cannot be empty" >&2
     exit 1
 fi
 
-# Function to log messages
-log() {
-    echo "[Version Check] $1"
-}
+if [ $# -eq 4 ] && [ -z "$3" ]; then
+    echo "❌ Error: Username cannot be empty when using authentication" >&2
+    exit 1
+fi
 
-# Wait a few seconds to ensure deployment is complete
-log "Waiting 5s for deployment to stabilize..."
+# --- Helper Functions ---
+log() { echo "[Version Check] $1" >&2; }
+
+# --- Main Logic ---
+log "Waiting for deployment to stabilize..."
 sleep 5
 
-# Perform HTTP GET request and capture the response with status code
 log "Fetching version from health check endpoint..."
-MAX_RETRIES=3
-RETRY_COUNT=0
-CURL_SUCCESS=false
 
-while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$CURL_SUCCESS" != "true" ]; do
-    if [ $RETRY_COUNT -gt 0 ]; then
-        log "Retry attempt $RETRY_COUNT of $MAX_RETRIES..."
+# Build curl auth option
+AUTH_OPTION=""
+if [ $# -eq 4 ]; then
+    AUTH_OPTION="-u $3:$4"
+    log "Using authentication with user $3"
+fi
+
+# The -0 or --http1.0 flag helps prevent hangs with simple mock servers.
+# The --max-time flag is a hard timeout for the entire operation.
+for attempt in 1 2 3; do
+    if [ $attempt -gt 1 ]; then
+        log "Retry attempt $attempt of 3..."
         sleep 5
     fi
-    
-    # Use curl with -w to output HTTP status code
-    CURL_RESPONSE=$(mktemp)
-    HTTP_CODE=$(curl -s -w "%{http_code}" "$HEALTH_CHECK_URL" -o "$CURL_RESPONSE" 2>&1)
-    
-    # Check if HTTP status code is 200
-    if [ "$HTTP_CODE" -eq 200 ]; then
-        RESPONSE=$(cat "$CURL_RESPONSE")
-        CURL_SUCCESS=true
-        log "Successfully connected to health check endpoint (HTTP 200)"
-        rm "$CURL_RESPONSE"
-    else
-        log "Failed to connect to health check endpoint (HTTP code: $HTTP_CODE)"
-        rm "$CURL_RESPONSE"
-        RETRY_COUNT=$((RETRY_COUNT+1))
+
+    RESPONSE=$(curl -0 --connect-timeout 2 --max-time 5 -s -w "\n%{http_code}" $AUTH_OPTION "$HEALTH_CHECK_URL" 2>/dev/null || true)
+    HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+    RESPONSE=$(echo "$RESPONSE" | sed '$d')
+
+    if [ "$HTTP_CODE" = "200" ]; then
+        log "Successfully connected (HTTP 200)"
+        break
+    fi
+
+    log "Failed to connect (HTTP $HTTP_CODE)"
+    if [ "$HTTP_CODE" = "401" ]; then
+        log "Hint: Received HTTP 401. Check credentials."
+    fi
+
+    if [ $attempt -eq 3 ]; then
+        log "❌ Failed after 3 attempts"
+        exit 1
     fi
 done
 
-if [ "$CURL_SUCCESS" != "true" ]; then
-    log "❌ Failed to connect to health check endpoint after $MAX_RETRIES attempts"
-    log "Health check URL: $HEALTH_CHECK_URL"
-    log "Last HTTP Status Code: $HTTP_CODE"
-    log "Please verify the URL is correct and the service is running"
-    exit 1
-fi
-
-# Check if jq is installed
+# --- JSON Parsing and Validation ---
 if ! command -v jq &> /dev/null; then
-    log "❌ Error: jq is not installed. Please install jq to parse JSON responses."
+    log "❌ Error: jq is not installed"
     exit 1
 fi
 
-# Validate JSON structure
-if ! echo "$RESPONSE" | jq -e . >/dev/null 2>&1; then
-    log "❌ Error: Response is not a valid JSON"
-    log "Response content (first 500 chars):"
-    echo "$RESPONSE" | head -c 500
-    exit 1
-fi
+# Extract version, removing control characters from nc/curl output
+ACTUAL_VERSION=$(echo "$RESPONSE" | jq -r '.appVersion // empty' 2>/dev/null | tr -d '[[:cntrl:]]')
 
-# Extract the app version using jq
-log "Extracting app version..."
-
-# Try to parse the JSON and extract appVersion
-ACTUAL_VERSION=$(echo "$RESPONSE" | jq -r '.appVersion // empty' 2>/dev/null)
-JQ_EXIT_CODE=$?
-
-# Check if jq command was successful
-if [ $JQ_EXIT_CODE -ne 0 ]; then
-    log "❌ Error: Failed to parse JSON response with jq (exit code: $JQ_EXIT_CODE)"
-    log "Response content (first 500 chars):"
-    echo "$RESPONSE" | head -c 500
-    exit 1
-fi
-
-# Check if appVersion field exists and is not empty
 if [ -z "$ACTUAL_VERSION" ]; then
-    log "❌ Error: appVersion field is missing or empty in the response"
-    log "Response content (first 500 chars):"
-    echo "$RESPONSE" | head -c 500
+    log "❌ Error: Invalid JSON or missing appVersion field"
+    echo "$RESPONSE" | head -c 500 >&2
     exit 1
 fi
 
-# Log the versions for debugging
-log "Expected version: $EXPECTED_VERSION"
-log "Actual version:   $ACTUAL_VERSION"
+# --- Version Comparison ---
+log "Expected: $EXPECTED_VERSION | Actual: $ACTUAL_VERSION"
 
-# Compare versions
-if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+if [ "$ACTUAL_VERSION" = "$EXPECTED_VERSION" ]; then
+    log "✅ Version verified successfully"
+else
     log "❌ Version mismatch detected!"
     exit 1
-else
-    log "✅ Version verified successfully"
-    exit 0
 fi
