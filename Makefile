@@ -1,7 +1,7 @@
 .PHONY: test help
 .DEFAULT_GOAL := help
 
-TEST_SCRIPT := .github/actions/version/check.test.sh
+TEST_SCRIPT := version/check.test.sh
 
 test:
 	@$(TEST_SCRIPT)
