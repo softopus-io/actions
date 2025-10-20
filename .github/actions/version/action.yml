@@ -1,0 +1,19 @@
+name: 'Verify deployed app version'
+description: 'make api request to health check endpoint and compare app version in the response'
+author: 'Softopus'
+
+inputs:
+  expected:
+    description: 'desired app version'
+    required: true
+  url:
+    description: 'whole url for the api http get request'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check Live URL
+      shell: bash
+      run: |
+        ${{ github.action_path }}/check.sh "${{ inputs.expected }}" "${{ inputs.url }}"
