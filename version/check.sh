@@ -53,6 +53,16 @@ for attempt in 1 2 3; do
         break
     fi
 
+    # Support file:// protocol which returns HTTP 000
+    if [ "$HTTP_CODE" = "000" ]; then
+         case "$HEALTH_CHECK_URL" in
+            file://*)
+                log "Successfully loaded local file (HTTP 000)"
+                break
+                ;;
+         esac
+    fi
+
     log "Failed to connect (HTTP $HTTP_CODE)"
     if [ "$HTTP_CODE" = "401" ]; then
         log "Hint: Received HTTP 401. Check credentials."
