@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # --- Argument Validation ---
@@ -75,7 +75,7 @@ for attempt in 1 2 3; do
 done
 
 # --- JSON Parsing and Validation ---
-if ! command -v jq &> /dev/null; then
+if ! command -v jq >/dev/null 2>&1; then
     log "❌ Error: jq is not installed"
     exit 1
 fi
