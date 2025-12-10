@@ -60,7 +60,7 @@ run_test() {
     echo -n "Test: $description... "
 
     # Speed up tests by reducing sleep duration
-    sed 's/sleep 5/sleep 0.1/g' ./check.sh | bash -s -- "$@" >/dev/null 2>&1 || actual_code=$?
+    sed 's/sleep 5/sleep 0.1/g' ./check.sh | sh -s -- "$@" >/dev/null 2>&1 || actual_code=$?
 
     if [ $actual_code -eq "$expected_code" ]; then
         echo -e "\033[32mPASS\033[0m"
@@ -139,3 +139,5 @@ run_test 1 "Fail: Empty version string" "" "$URL"
 run_test 1 "Fail: Empty URL" "1.2.3" ""
 run_test 1 "Fail: Empty username" "1.2.3" "$URL" "" "pass"
 run_test 1 "Fail: Empty password" "1.2.3" "$URL" "user" ""
+run_test 0 "Success: File protocol (valid file)" "1.0.0" "file://$(pwd)/check.test.mock.json"
+run_test 1 "Fail: File protocol (file not found)" "1.2.3" "file:///tmp/nonexistent_file_xyz_123"

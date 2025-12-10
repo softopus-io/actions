@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # --- Argument Validation ---
@@ -53,6 +53,16 @@ for attempt in 1 2 3; do
         break
     fi
 
+    # Support file:// protocol which returns HTTP 000
+    if [ "$HTTP_CODE" = "000" ]; then
+         case "$HEALTH_CHECK_URL" in
+            file://*)
+                log "Successfully loaded local file (HTTP 000)"
+                break
+                ;;
+         esac
+    fi
+
     log "Failed to connect (HTTP $HTTP_CODE)"
     if [ "$HTTP_CODE" = "401" ]; then
         log "Hint: Received HTTP 401. Check credentials."
@@ -65,7 +75,7 @@ for attempt in 1 2 3; do
 done
 
 # --- JSON Parsing and Validation ---
-if ! command -v jq &> /dev/null; then
+if ! command -v jq >/dev/null 2>&1; then
     log "❌ Error: jq is not installed"
     exit 1
 fi
