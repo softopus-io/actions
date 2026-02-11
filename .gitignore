@@ -52,3 +52,17 @@ test-results/
 # Cannot be ignored until we have a deployment
 #generated
 tsconfig.tsbuildinfo
+
+
+# ignore IDE workspace settings
+.vscode
+
+# ignore positional files
+**/.empty
+**/.keep
+
+# ignore TMP folder
+**/tmp/**
+
+# ignore backup files
+**/*.bak
